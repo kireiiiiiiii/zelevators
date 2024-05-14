@@ -35,7 +35,7 @@ import game.Game;
  * </p>
  * <h4> Algorithm system: </h4>
  * </p>
- * TODO: definiton
+ * TODO: Algorithm definiton
  * 
  */
 public class MyElevatorController implements ElevatorController {

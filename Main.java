@@ -9,13 +9,13 @@ public class Main {
         // ...
 
         // Create up the game, it kicks off the whole process...
-        // if (!Game.Create(new MyElevatorController())) {
-        // throw new Error("Could not create the game :(");
-        // }
-
-        GameConfig gameConfig = new GameConfig(120, 8, 1, 10.0);
-        if (!Game.Create(gameConfig, new MyElevatorController())) {
+        if (!Game.Create(new MyElevatorController())) {
             throw new Error("Could not create the game :(");
         }
+
+        // GameConfig gameConfig = new GameConfig(120, 8, 1, 10.0);
+        // if (!Game.Create(gameConfig, new MyElevatorController())) {
+        //     throw new Error("Could not create the game :(");
+        // }
     }
 }
