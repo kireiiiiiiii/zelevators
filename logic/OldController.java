@@ -45,7 +45,7 @@
   * TODO: Algorithm definiton
   *
   */
- public class MyElevatorController implements ElevatorController {
+ public class OldController implements ElevatorController {
   
      /////////////////
      // Constants
@@ -54,8 +54,8 @@
      private final String PLAYER_NAME = "Matěj Šťastný";
      private final int PLAYER_PERIOD = 6;
      private final double ELEVATOR_SPEED = 0.5; // How many seconds per floor
-     private final double ZOMBIE_BOARD_TIME = 2.8; // How many seconds from the eleator arrival to zombie in
-     private final double ZOMBIE_UNBOARD_TIME = 1.5;
+     private final double ZOMBIE_BOARD_TIME = 5; // How many seconds from the eleator arrival to zombie in
+     private final double ZOMBIE_UNBOARD_TIME = 5;
   
      /////////////////
      // Class variables
@@ -105,53 +105,52 @@
          this.waitList = new ArrayList<ElevatorRequest>();
          this.gotoList = new ArrayList<ElevatorRequest>();
          this.scheduler = Executors.newSingleThreadScheduledExecutor();
+  
+         // Runnable goToTarget = () -> {
+         // gotoFloor(0, 3);
+         // System.out.println("Going to 3");
+         // };
+  
+         // System.out.println("Going to 5");
+         // gotoFloor(0, 5);
+  
+         // scheduler.schedule(goToTarget, 5, TimeUnit.SECONDS);
+  
      }
   
      /**
-      * On event method called automaticly by the game, when specified event appeares
-      * </p>
-      * <h4>Event:</h4>
-      * "outside-the-elevator" request, meaning zombie requesting an elevator from
-      * it's floor.
-      * </p>
-      * The event will be triggered with the request is created/enabled and also when
-      * it is
+      * Event: "outside-the-elevator" request, requesting an elevator.
+      * The event will be triggered with the request is created/enabled & when it is
       * cleared (reqEnable indicates which).
       *
-      * @param floorIdx  - index of the floor, where the zombie is calling the
-      *                  elevator from.
-      * @param dir       - direction that the elevator must go from it's position, to
-      *                  reach the zombies floor.
-      * @param reqEnable - if the request was created, or cleared.
+      * @param floorIdx
+      * @param dir
+      * @param reqEnable
       */
      public void onElevatorRequestChanged(int floorIdx, Direction dir, boolean reqEnable) {
-         // Add the request to the zombie wait list, if it's a new request
+         // System.out.println("onElevatorRequestChanged(" + floorIdx + ", " + dir + ", "
+         // + reqEnable + ")");
+  
+         // Add the request to the wait list, if new request
          if (reqEnable) {
              this.waitList.add(new ElevatorRequest(floorIdx, dir, reqEnable));
          }
   
-         // If it's the first request, start the elevator move sequence
          if (this.isFirstReq) {
              this.isFirstReq = false;
              this.toDestination = false;
-             startElevatorMoveSequence();
+             moveToNext(true, 0);
          }
      }
   
      /**
-      * On event method called automaticly by the game, when specified event appeares
-      * </p>
-      * <h4>Event:</h4>
-      * "inside-the-elevator" request, meaning a zombie in that entered the elevator
-      * is requesting a floor it want's to go.
-      * </p>
-      * The event will be triggered with the request is created/enabled and also when
-      * it is
+      * Event: "inside-the-elevator" request, requesting to go to a floor.
+      * The event will be triggered with the request is created/enabled & when it is
       * cleared (reqEnable indicates which).
       *
-      * @param elevatorIdx - index of the elevator, normally 0.
-      * @param floorIdx    - index of the floor, that the zombie wan't to go to.
-      * @param reqEnable   - if the request was created, or cleared.
+      * @param elevatorIdx
+      * @param floorIdx
+      * @param reqEnable
       */
      public void onFloorRequestChanged(int elevatorIdx, int floorIdx, boolean reqEnable) {
          System.out.println(
@@ -164,28 +163,47 @@
      }
   
      /**
-      * On event method called automaticly by the game, when specified event appeares
-      * </p>
-      * <h4>Event:</h4>
-      * The elevator arrived at a floor and opened it's door.
-      * </p>
-      * !The medhod doesn't work properly!
+      * Event: Elevator has arrived at the floor & doors are open.
       *
-      * @param elevatorIdx     - index of the elevator, normally 0.
-      * @param floorIdx        - index of the floor, that the elevator arrived at.
-      * @param traverDirection - I have no clue what this is :(
+      * @param elevatorIdx
+      * @param floorIdx
+      * @param traverDirection
       */
      public void onElevatorArrivedAtFloor(int elevatorIdx, int floorIdx, Direction travelDirection) {
-         // ! Method doesn't work!
+         // System.out.println(timeStamp() + "onElevatorArrivedAtFloor(" + elevatorIdx +
+         // ", " + floorIdx + ", " + travelDirection + ")");
+  
+         // double delay = getDelay();
+  
+         // Runnable afterDelay = () -> {
+         // moveToNext(false, floorIdx);
+         // };
+  
+         // scheduler.schedule(afterDelay, (int)delay*1000, TimeUnit.MILLISECONDS);
+  
+         // if (this.toDestination) {
+         // this.gotoList.remove(0);
+         // if (this.waitList.size() > 0) {
+         // this.waitList.get(0).runRequest();
+         // this.waitList.remove(0);
+         // this.toDestination = false;
+         // }
+  
+         // }
+         // else {
+         // this.waitList.remove(0);
+         // if (this.gotoList.size() > 0) {
+         // this.gotoList.get(0).runRequest();
+         // this.gotoList.remove(0);
+         // this.toDestination = true;
+         // }
+         // }
      }
   
      /**
-      * On event method called automaticly by the game, when specified event appeares
-      * </p>
-      * <h4>Event:</h4>
-      * Called each frame of the simulation.
+      * Event: Called each frame of the simulation (i.e. called continuously)
       *
-      * @param deltaTime - delta time.
+      * @param deltaTime
       */
      public void onUpdate(double deltaTime) {
          if (game == null) {
@@ -197,21 +215,9 @@
      // Private methods
      ////////////////
   
-     /**
-      * Algorythm to determine if the elevator should go for a zombie waiting for an
-      * elevator, or deliver a zombie in the elevator.
-      *
-      * @return {@code boolean} value of "delivering zombie", meaning {@code true} if
-      *         the next move should be delivering a zombie to it's destination, or
-      *         {@code false} if the next move should be picking up a zombie waiting
-      *         for an elevator.
-      */
-     private boolean getRequestMode() {
-  
-         // TODO implement, so it returns the time best request
-  
-         // Assume, that the at least one of the arrays is not empty
+     private boolean getGotoDestination() {
          assert (this.gotoList.size() > 0 || this.waitList.size() > 0) : "Arraylists empty";
+  
          boolean bol;
   
          if (this.toDestination) {
@@ -241,30 +247,16 @@
          return bol;
      }
   
-     /**
-      * Starts the recursive method for moving the elevator.
-      *
-      */
-     private void startElevatorMoveSequence() {
-         moveToNext(true, 0);
-     }
-  
-     /**
-      * This is a recursive method, with a time delay of when it's called.
-      * </p>
-      * This method will first remove the data of the floor the elevator arrived in
-      * (if there are zombies on the 1st floor, and the elevator is on 1st floor,
-      * than all the {@code elevatorRequest} for this floor will be cleared), than
-      * moves the eleator to it's next position using reursion.
-      *
-      * @param init     - tells the method, if it should delete it's preious
-      *                 destination data.
-      * @param currFoor - current floor of the elevator.
-      */
      private void moveToNext(boolean init, int currFoor) {
-  
-         // Remove previous destination data
+         System.out.println("GT: " + this.gotoList);
+         System.out.println("WL: " + this.waitList);
          if (!init) {
+             // if (this.toDestination) {
+             // this.gotoList.remove(0);
+             // }
+             // else {
+             // this.waitList.remove(0);
+             // }
              for (int i = 0; i < this.gotoList.size(); i++) {
                  ElevatorRequest e = this.gotoList.get(i);
                  if (e.getFloorNum() == currFoor) {
@@ -281,13 +273,9 @@
              }
          }
   
-         // Get the new mode of the elevator
-         this.toDestination = getRequestMode();
-         String mode = this.toDestination ? "Delivering" : "Picking up";
-         System.out.println(timeStamp() + "Mode: " + mode);
+         this.toDestination = getGotoDestination();
          int targetFloor;
   
-         // Moves the elevator to it's next position
          if (this.toDestination) {
              this.gotoList.get(0).runRequest();
              targetFloor = this.gotoList.get(0).getFloorNum();
@@ -296,60 +284,32 @@
              targetFloor = this.waitList.get(0).getFloorNum();
          }
   
-         // Counts the time it will take the eleator to travel in miliseconds
-         int elevDelay = (int) (getElevatorTravelTime(currFoor, targetFloor) * 1000);
-         // Creates a runnable, that should be excecuted after the elevator arrives
-         Runnable onArrival = () -> {
+         int elevatorTravelTimeInMiliseconds = (int) (getElevatorTravelTime(currFoor, targetFloor) * 1000);
+         Runnable afterElevator = () -> {
              moveToNext(false, targetFloor);
          };
-         // Schedules the onArrival code after the travel time of the elevator, and the
-         // boarding time
-         scheduler.schedule(onArrival, elevDelay + (int) (getDelay(targetFloor) * 1000),
+         scheduler.schedule(afterElevator, elevatorTravelTimeInMiliseconds + (int) (this.ZOMBIE_UNBOARD_TIME * 1000),
                  TimeUnit.MILLISECONDS);
      }
   
-     /**
-      * Returns the time stamp {@code String}. to append before an event log.
-      *
-      * @return {@code String} of a log time stamp. It's spaced and with a dividor.
-      */
      private String timeStamp() {
          LocalTime time = LocalTime.now();
          return "> " + time.toString() + " | ";
      }
   
-     /**
-      * Determines the elevator waiting time, depending on the class variable.
-      *
-      * @return {@code double} of the time in seconds.
-      */
-     private double getDelay(int onFloor) {
-         boolean hasWaiting = false;
-         for (ElevatorRequest e : this.waitList) {
-             if (e.getFloorNum() == onFloor) {
-                 hasWaiting = true;
-                 break;
-             }
-         }
+     private double getDelay() {
   
          double delay;
   
-         if (hasWaiting) {
-             delay = this.ZOMBIE_BOARD_TIME;
-         } else {
+         if (this.toDestination) {
              delay = this.ZOMBIE_UNBOARD_TIME;
+         } else {
+             delay = this.ZOMBIE_BOARD_TIME;
          }
   
          return delay;
      }
   
-     /**
-      * Gets the time it will take the elevator to travel from a floor to another.
-      *
-      * @param currFloor   - current floor of the elevator.
-      * @param targetFloor - target floor of the elevator.
-      * @return {@code double} of the time in seconds.
-      */
      private double getElevatorTravelTime(int currFloor, int targetFloor) {
          int floors = Math.abs(targetFloor - currFloor);
          return (double) (floors * this.ELEVATOR_SPEED);
@@ -359,10 +319,6 @@
      // Nested classes
      ////////////////
   
-     /**
-      * Class containing the data of an elevator request.
-      *
-      */
      @SuppressWarnings("unused")
      private final class ElevatorRequest {
   
@@ -395,4 +351,3 @@
      }
   
  }
-  
