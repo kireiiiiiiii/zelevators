@@ -26,6 +26,7 @@
 
 package logic;
 
+import java.util.*;
 import game.ElevatorController;
 import game.Game;
 
@@ -52,6 +53,9 @@ public class MyElevatorController implements ElevatorController {
     ////////////////
 
     private Game game;
+    private boolean toDestination;
+    private ArrayList<ElevatorRequest> waitList;
+    private ArrayList<ElevatorRequest> gotoList;
 
     /////////////////
     // Accesor methods
@@ -86,6 +90,9 @@ public class MyElevatorController implements ElevatorController {
      */
     public void onGameStarted(Game game) {
         this.game = game;
+        this.waitList = new ArrayList<ElevatorRequest>();
+        this.gotoList = new ArrayList<ElevatorRequest>();
+        gotoFloor(0, 0);
     }
 
     /**
@@ -99,10 +106,9 @@ public class MyElevatorController implements ElevatorController {
     public void onElevatorRequestChanged(int floorIdx, Direction dir, boolean reqEnable) {
         System.out.println("onElevatorRequestChanged(" + floorIdx + ", " + dir + ", " + reqEnable + ")");
 
-        // TODO
+        // Add the request to the wait list, if new request
         if (reqEnable) {
-            gotoFloor(0, floorIdx);
-            System.out.println("  --> gotoFloor(" + floorIdx + ")");
+            this.waitList.add(new ElevatorRequest(floorIdx, dir, reqEnable));
         }
     }
 
@@ -117,9 +123,13 @@ public class MyElevatorController implements ElevatorController {
     public void onFloorRequestChanged(int elevatorIdx, int floorIdx, boolean reqEnable) {
         System.out.println("onFloorRequesteChanged(" + elevatorIdx + ", " + floorIdx + ", " + reqEnable + ")");
 
-        // TODO
-        gotoFloor(0, floorIdx);
-        System.out.println("  --> gotoFloor(" + floorIdx + ")");
+        // Add the request to the que list, if new request
+        if (reqEnable) {
+            this.gotoList.add(new ElevatorRequest(floorIdx, null, reqEnable));
+        }
+
+        // gotoFloor(0, floorIdx);
+        // System.out.println("  --> gotoFloor(" + floorIdx + ")");
     }
 
     /**
@@ -131,8 +141,24 @@ public class MyElevatorController implements ElevatorController {
      */
     public void onElevatorArrivedAtFloor(int elevatorIdx, int floorIdx, Direction travelDirection) {
         System.out.println("onElevatorArrivedAtFloor(" + elevatorIdx + ", " + floorIdx + ", " + travelDirection + ")");
-
-        // TODO
+        
+        if (this.toDestination) {
+            this.gotoList.remove(0);
+            if (this.waitList.size() > 0) {
+                this.waitList.get(0).runRequest();
+                this.waitList.remove(0);
+                this.toDestination = false;
+            }
+            
+        }
+        else {
+            this.waitList.remove(0);
+            if (this.gotoList.size() > 0) {
+                this.gotoList.get(0).runRequest();
+                this.gotoList.remove(0);
+                this.toDestination = true;
+            }
+        }
     }
 
     /**
@@ -151,5 +177,37 @@ public class MyElevatorController implements ElevatorController {
     /////////////////
     // Private methods
     ////////////////
+
+    // TODO : make this method to get next move, and than actually move the elevator, and update the lists
+    // private boolean getGotoDestination() {
+    //     if (this.toDestination) {
+    //         if 
+    //     }
+    // }
+
+
+    /////////////////
+    // Nested classes
+    ////////////////
+
+    @SuppressWarnings("unused")
+    private final class ElevatorRequest {
+
+        private final int ELEVATOR_INDEX = 0;
+        
+        private int floorNum;
+        private Direction dir;
+        private boolean reqEnable;
+
+        public ElevatorRequest(int floorNum, Direction dir, boolean reqEnable) {
+            this.floorNum = floorNum;
+            this.dir = dir;
+            this.reqEnable = reqEnable;
+        }
+
+        public void runRequest() {
+            gotoFloor(this.ELEVATOR_INDEX, this.floorNum);
+        }
+    }
 
 }
