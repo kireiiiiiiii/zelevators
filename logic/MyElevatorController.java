@@ -72,8 +72,8 @@ public class MyElevatorController implements ElevatorController {
     private boolean toDestination;
     private boolean isFirstReq;
     private boolean areEmpty;
-    private ArrayList<ElevatorRequest> waitList;
-    private ArrayList<ElevatorRequest> gotoList;
+    private ArrayList<ElevatorRequest> waitingForElevatorRequests;
+    private ArrayList<ElevatorRequest> inElevatorRequests;
     private ScheduledExecutorService scheduler;
     private int elevatorTargetFloor;
 
@@ -109,13 +109,17 @@ public class MyElevatorController implements ElevatorController {
      * @param game - {@code Game} object of the game.
      */
     public void onGameStarted(Game game) {
-        System.out.println(this.COLOR_IMPORTANT + timeStamp() + "GAME START" + this.COLOR_RESET);
+
+        // Initialize fields
         this.game = game;
         this.areEmpty = false;
         this.isFirstReq = true;
-        this.waitList = new ArrayList<ElevatorRequest>();
-        this.gotoList = new ArrayList<ElevatorRequest>();
+        this.waitingForElevatorRequests = new ArrayList<ElevatorRequest>();
+        this.inElevatorRequests = new ArrayList<ElevatorRequest>();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        // Log the start of the game, and schedule the log for the end of the game.
+        System.out.println(this.COLOR_IMPORTANT + timeStamp() + "GAME START" + this.COLOR_RESET);
         scheduler.schedule(() -> {
             System.out.println(this.COLOR_IMPORTANT_2 + timeStamp() + "GAME END" + this.COLOR_RESET);
         }, this.GAME_LENGHT, TimeUnit.SECONDS);
@@ -142,8 +146,8 @@ public class MyElevatorController implements ElevatorController {
         // Add the request to the zombie wait list, if it's a new request
         if (reqEnable) {
             System.out.println(this.COLOR_CALL_ELEVATOR + timeStamp() + "newElevatorCall(" + floorIdx + ")" + " Sum: "
-                    + this.waitList.size() + this.COLOR_RESET);
-            this.waitList.add(new ElevatorRequest(floorIdx, LocalTime.now()));
+                    + this.waitingForElevatorRequests.size() + this.COLOR_RESET);
+            this.waitingForElevatorRequests.add(new ElevatorRequest(floorIdx, LocalTime.now()));
         }
 
         // If it's the first request, start the elevator move sequence
@@ -172,11 +176,11 @@ public class MyElevatorController implements ElevatorController {
     public void onFloorRequestChanged(int elevatorIdx, int floorIdx, boolean reqEnable) {
         System.out.println(
                 this.COLOR_QUE_FLOOR + timeStamp() + "floorRequestQued(" + elevatorIdx + ", " + floorIdx + ", "
-                        + reqEnable + ")" + " Sum: " + this.gotoList.size() + this.COLOR_RESET);
+                        + reqEnable + ")" + " Sum: " + this.inElevatorRequests.size() + this.COLOR_RESET);
 
         // Add the request to the que list, if new request
         if (reqEnable) {
-            this.gotoList.add(new ElevatorRequest(floorIdx, LocalTime.now()));
+            this.inElevatorRequests.add(new ElevatorRequest(floorIdx, LocalTime.now()));
         }
     }
 
@@ -198,9 +202,10 @@ public class MyElevatorController implements ElevatorController {
 
     /**
      * On event method called automaticly by the game, when specified event appeares
+     * (tick method).
      * </p>
      * <h4>Event:</h4>
-     * Called each frame of the simulation.
+     * Tick method.
      *
      * @param deltaTime - delta time.
      */
@@ -208,12 +213,16 @@ public class MyElevatorController implements ElevatorController {
         if (game == null) {
             return;
         }
-        if (this.gotoList.size() + this.waitList.size() <= 0 && !this.isFirstReq) {
+
+        // The lists are empty, and haven't been emty last tick.
+        if (this.inElevatorRequests.size() + this.waitingForElevatorRequests.size() <= 0 && !this.isFirstReq) {
             if (!this.areEmpty) {
                 System.out.println(this.COLOR_IMPORTANT + timeStamp() + "EMPTY ARRAYS" + this.COLOR_RESET);
                 areEmpty = true;
             }
-        } else if (areEmpty) {
+        } 
+        // The lists not empty for the first time since empty
+        else if (areEmpty) {
             System.out.println(this.COLOR_IMPORTANT + timeStamp() + "MoveSequence Restored" + this.COLOR_RESET);
             areEmpty = false;
             resumeElevatorMoveSequence(this.elevatorTargetFloor);
@@ -236,82 +245,100 @@ public class MyElevatorController implements ElevatorController {
     private boolean getRequestMode() {
 
         // Assume, that the at least one of the arrays is not empty
-        assert (this.gotoList.size() > 0 || this.waitList.size() > 0) : "Arraylists empty";
-        boolean bol;
+        assert (this.inElevatorRequests.size() > 0 || this.waitingForElevatorRequests.size() > 0) : "Arraylists empty";
+        boolean isDelivering;
 
         if (this.toDestination) {
             // Previously going to destination, and wait list isn't empty
-            if (waitList.size() > 0) {
-                bol = false;
+            if (waitingForElevatorRequests.size() > 0) {
+                isDelivering = false;
             }
 
             // Previously going to destination, but waitlist empty
             else {
-                bol = true;
+                isDelivering = true;
             }
         }
 
         else {
             // Previously going for new zombie on waitlist, and the gotoList isn't empty
-            if (this.gotoList.size() > 0) {
-                bol = true;
+            if (this.inElevatorRequests.size() > 0) {
+                isDelivering = true;
             }
 
             // Previously goig for new zombie, but the gotoList empty
             else {
-                bol = false;
+                isDelivering = false;
             }
         }
 
-        return bol;
+        return isDelivering;
     }
 
     /**
-     * ! Index 0 -> gotoList
-     * ! Index 1 -> waitList
+     * Method, that will find the most optimal request to fufill next. Picks the
+     * oldest {@code ElevatorRequest} object in both arrays. Returns an array of
+     * {@code int}s
+     * </p>
+     * First element is determined like this:
+     * </p>
+     * 0 -> {@code inElevatorRequests}
+     * 1 -> {@code waitingForElevatorRequests}
+     * </p>
+     * The second element just indicated the index of the {@ElevatorRequest} chosen
+     * from that array.
      * 
-     * @return
+     * @return index of the {@code ElevatorRequest} chosen.
      */
     private int[] getBestReqIndex() {
-        if (this.waitList.size() < 1 && this.gotoList.size() < 1) {
+        // If the lists are empty, return null
+        if (this.waitingForElevatorRequests.size() < 1 && this.inElevatorRequests.size() < 1) {
             return null;
         }
 
-        LocalTime bestTime;
-        int[] bestIndex = new int[2];
+        LocalTime currentBestTime;
+        int[] currentBestIndex = new int[2];
         // If waitlist is empty take first from goto
-        if (this.waitList.size() == 0) {
-            bestIndex[0] = 0;
-            bestIndex[1] = 0;
-            bestTime = gotoList.get(0).getTime();
+        if (this.waitingForElevatorRequests.size() == 0) {
+            currentBestIndex[0] = 0;
+            currentBestIndex[1] = 0;
+            currentBestTime = inElevatorRequests.get(0).getTimeCreated();
         } else {
-            bestIndex[0] = 1;
-            bestIndex[1] = 0;
-            bestTime = waitList.get(0).getTime();
+            currentBestIndex[0] = 1;
+            currentBestIndex[1] = 0;
+            currentBestTime = waitingForElevatorRequests.get(0).getTimeCreated();
         }
 
-        for (int i = 1; i < this.waitList.size(); i++) {
-            if (bestTime.compareTo(waitList.get(i).getTime()) >= 0) {
-                bestTime = waitList.get(i).getTime();
-                bestIndex[0] = 1;
-                bestIndex[1] = i;
+        for (int i = 1; i < this.waitingForElevatorRequests.size(); i++) {
+            if (currentBestTime.compareTo(waitingForElevatorRequests.get(i).getTimeCreated()) >= 0) {
+                currentBestTime = waitingForElevatorRequests.get(i).getTimeCreated();
+                currentBestIndex[0] = 1;
+                currentBestIndex[1] = i;
             }
         }
 
-        for (int i = 0; i < this.gotoList.size(); i++) {
-            if (bestTime.compareTo(gotoList.get(i).getTime()) >= 0) {
-                bestTime = gotoList.get(i).getTime();
-                bestIndex[0] = 0;
-                bestIndex[1] = i;
+        for (int i = 0; i < this.inElevatorRequests.size(); i++) {
+            if (currentBestTime.compareTo(inElevatorRequests.get(i).getTimeCreated()) >= 0) {
+                currentBestTime = inElevatorRequests.get(i).getTimeCreated();
+                currentBestIndex[0] = 0;
+                currentBestIndex[1] = i;
             }
         }
 
-        return bestIndex;
+        return currentBestIndex;
     }
 
+    /**
+     * Old method to find the index of the next floor the elevator will travel to.
+     * 
+     * @return - array of {@int}s, first element is the request list chosen (either
+     *         1 for {@code inElevatorRequests} or 0 for
+     *         {@code waitingForElevatorRequests}), and the second element for the
+     *         index of the {@code ElevatorRequest} chosen in the array.
+     */
     @SuppressWarnings("unused")
     private int[] getNextIndex() {
-        if (this.waitList.size() < 1 && this.gotoList.size() < 1) {
+        if (this.waitingForElevatorRequests.size() < 1 && this.inElevatorRequests.size() < 1) {
             return null;
         }
 
@@ -352,62 +379,65 @@ public class MyElevatorController implements ElevatorController {
      * than all the {@code elevatorRequest} for this floor will be cleared), than
      * moves the eleator to it's next position using reursion.
      *
-     * @param init     - tells the method, if it should delete it's preious
-     *                 destination data.
-     * @param currFoor - current floor of the elevator.
+     * @param initialCall          - tells the method, if it should delete it's
+     *                             preious
+     *                             destination data.
+     * @param currentElevatorFloor - current floor of the elevator.
      */
-    private void moveToNext(boolean init, int currFoor) {
+    private void moveToNext(boolean initialCall, int currentElevatorFloor) {
 
         // Remove previous destination data
-        if (!init) {
-            for (int i = 0; i < this.gotoList.size(); i++) {
-                ElevatorRequest e = this.gotoList.get(i);
-                if (e.getFloorNum() == currFoor) {
-                    gotoList.remove(i);
+        if (!initialCall) {
+            for (int i = 0; i < this.inElevatorRequests.size(); i++) {
+                ElevatorRequest e = this.inElevatorRequests.get(i);
+                if (e.getTargetFloor() == currentElevatorFloor) {
+                    inElevatorRequests.remove(i);
                     i--;
                 }
             }
-            for (int i = 0; i < this.waitList.size(); i++) {
-                ElevatorRequest e = this.waitList.get(i);
-                if (e.getFloorNum() == currFoor) {
-                    waitList.remove(i);
+            for (int i = 0; i < this.waitingForElevatorRequests.size(); i++) {
+                ElevatorRequest e = this.waitingForElevatorRequests.get(i);
+                if (e.getTargetFloor() == currentElevatorFloor) {
+                    waitingForElevatorRequests.remove(i);
                     i--;
                 }
             }
         }
 
-        String mode = this.toDestination ? "Delivering" : "Picking up";
+        String travelMode = this.toDestination ? "Delivering" : "Picking up";
         int targetFloor;
 
         // Get next array request index
-        int[] next = getBestReqIndex();
+        int[] nextFloorIndex = getBestReqIndex();
 
-        if (next == null) {
-            assert (false) : "Arrays are empty";
+        if (nextFloorIndex == null) {
+            return;
         }
-        if (next[0] == 0) {
-            targetFloor = gotoList.get(next[1]).getFloorNum();
-            gotoList.get(next[1]).runRequest();
+        if (nextFloorIndex[0] == 0) {
+            targetFloor = inElevatorRequests.get(nextFloorIndex[1]).getTargetFloor();
+            inElevatorRequests.get(nextFloorIndex[1]).runRequest();
         } else {
-            targetFloor = waitList.get(next[1]).getFloorNum();
-            waitList.get(next[1]).runRequest();
+            targetFloor = waitingForElevatorRequests.get(nextFloorIndex[1]).getTargetFloor();
+            waitingForElevatorRequests.get(nextFloorIndex[1]).runRequest();
         }
 
         // Print log
-        System.out.println(this.COLOR_ELEVATOR_MOVE + timeStamp() + mode + "(From: " + currFoor + " To: " + targetFloor +  ")" + this.COLOR_RESET);
+        System.out.println(this.COLOR_ELEVATOR_MOVE + timeStamp() + travelMode + "(From: " + currentElevatorFloor
+                + " To: " + targetFloor
+                + ")" + this.COLOR_RESET);
 
         // Save the target floor
         this.elevatorTargetFloor = targetFloor;
 
         // Counts the time it will take the eleator to travel in miliseconds
-        int elevDelay = (int) (getElevatorTravelTime(currFoor, targetFloor) * 1000);
+        int elevDelay = (int) (getElevatorTravelTime(currentElevatorFloor, targetFloor) * 1000);
         // Creates a runnable, that should be excecuted after the elevator arrives
         Runnable onArrival = () -> {
             moveToNext(false, targetFloor);
         };
         // Schedules the onArrival code after the travel time of the elevator, and the
         // boarding time
-        scheduler.schedule(onArrival, elevDelay + (int) (getDelay(targetFloor) * 1000),
+        scheduler.schedule(onArrival, elevDelay + (int) (getWaitTime(targetFloor) * 1000),
                 TimeUnit.MILLISECONDS);
     }
 
@@ -422,39 +452,31 @@ public class MyElevatorController implements ElevatorController {
     }
 
     /**
-     * Determines the elevator waiting time, depending on the class variable.
+     * Determines the shortest time the elevator has to wait on a floor, in order to
+     * all zombies to board, and unboard.
      *
+     * @param onFloor - target floor.
      * @return {@code double} of the time in seconds.
      */
-    private double getDelay(int onFloor) {
-        int numWaiting = 0;
-        for (ElevatorRequest e : this.waitList) {
-            if (e.getFloorNum() == onFloor) {
-                numWaiting++;
+    private double getWaitTime(int onFloor) {
+        boolean hasWaiting = false;
+        for (ElevatorRequest e : this.waitingForElevatorRequests) {
+            if (e.getTargetFloor() == onFloor) {
+                hasWaiting = true;
             }
         }
-
-        double delay;
-
-        if (numWaiting == 0) {
-            delay = this.ZOMBIE_UNBOARD_TIME;
-        } else {
-            numWaiting = 1; // TODO DANGER
-            delay = this.ZOMBIE_BOARD_TIME * numWaiting;
-        }
-
-        return delay;
+        return hasWaiting ? this.ZOMBIE_BOARD_TIME : this.ZOMBIE_UNBOARD_TIME;
     }
 
     /**
      * Gets the time it will take the elevator to travel from a floor to another.
      *
-     * @param currFloor   - current floor of the elevator.
-     * @param targetFloor - target floor of the elevator.
+     * @param currentFloor - current floor of the elevator.
+     * @param targetFloor  - target floor of the elevator.
      * @return {@code double} of the time in seconds.
      */
-    private double getElevatorTravelTime(int currFloor, int targetFloor) {
-        int floors = Math.abs(targetFloor - currFloor);
+    private double getElevatorTravelTime(int currentFloor, int targetFloor) {
+        int floors = Math.abs(targetFloor - currentFloor);
         return (double) (floors * this.ELEVATOR_SPEED);
     }
 
@@ -463,39 +485,106 @@ public class MyElevatorController implements ElevatorController {
     ////////////////
 
     /**
-     * Class containing the data of an elevator request.
+     * Class containing the data of an elevator request. Has 2 fields, an
+     * {@code int} field indicating the target elevator floor requested, and time,
+     * that idicating the time the request was created.
      *
      */
     @SuppressWarnings("unused")
     private final class ElevatorRequest {
 
-        private final int ELEVATOR_INDEX = 0;
+        /////////////////
+        // Constants
+        ////////////////
 
-        private int floorNum;
-        private LocalTime time;
+        private final int DEFAULT_ELEVATOR_INDEX = 0;
 
-        public ElevatorRequest(int floorNum, LocalTime time) {
-            this.floorNum = floorNum;
-            this.time = time;
+        /////////////////
+        // Class variables
+        ////////////////
+
+        private int targetFloor;
+        private LocalTime timeCreated;
+
+        /////////////////
+        // Contructors
+        ////////////////
+
+        /**
+         * Creates a new {@code ElevatorRequest}.
+         * 
+         * @param targetFloor - number of the floor this {@code ElevatorRequest} was
+         *                    requested to.
+         * @param timeCreated - time of when was this request created.
+         */
+        public ElevatorRequest(int targetFloor, LocalTime timeCreated) {
+            this.targetFloor = targetFloor;
+            this.timeCreated = timeCreated;
         }
 
+        /////////////////
+        // Accesor methods
+        ////////////////
+
+        /**
+         * Gets the floor number of the {@code ElevatorRequest}.
+         * 
+         * @return - {@code int} of the floor.
+         */
+        public int getTargetFloor() {
+            return this.targetFloor;
+        }
+
+        /**
+         * Gets the {@code LocalTime} of this {@code ElevatorObject}.
+         * 
+         * @return the time.
+         */
+        public LocalTime getTimeCreated() {
+            return this.timeCreated;
+        }
+
+        /////////////////
+        // Modifier methods
+        ////////////////
+
+        /**
+         * Sets the floor number value of this {@code ElevatorRequest}.
+         * 
+         * @param newValue - new value.
+         */
+        public void setTargetFloor(int newValue) {
+            this.targetFloor = newValue;
+        }
+
+        /**
+         * Sets the time created field.
+         * 
+         * @param newValue - new value.
+         */
+        public void setTimeCreated(LocalTime newValue) {
+            this.timeCreated = newValue;
+        }
+
+        /////////////////
+        // Other public methods
+        ////////////////
+
+        /**
+         * Moves the elevator to the floor this {@code ElevatorRequest} has.
+         * 
+         */
         public void runRequest() {
-            boolean b = gotoFloor(this.ELEVATOR_INDEX, this.floorNum);
-            // System.out.println(COLOR_ELEVATOR_RUN + timeStamp() + "Going to(" + this.floorNum + ")" + COLOR_RESET);
+            boolean b = gotoFloor(this.DEFAULT_ELEVATOR_INDEX, this.targetFloor);
         }
 
-        public int getFloorNum() {
-            return this.floorNum;
-        }
-
-        public LocalTime getTime() {
-            return this.time;
-        }
+        /////////////////
+        // ToString
+        ////////////////
 
         @Override
         public String toString() {
-            return "FNum: " + this.floorNum;
+            return "Target floor: " + this.targetFloor + ", Time created: " + this.timeCreated.toString();
         }
     }
-
 }
