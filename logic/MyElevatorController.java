@@ -55,7 +55,7 @@ public class MyElevatorController implements ElevatorController {
     private final int PLAYER_PERIOD = 6;
     private final int GAME_LENGHT = 120;
     private final double ELEVATOR_SPEED = 0.5; // How many seconds per floor
-    private final double ZOMBIE_BOARD_TIME = 2.8; // How many seconds from the eleator arrival to zombie in
+    private final double ZOMBIE_BOARD_TIME = 2.85; // How many seconds from the eleator arrival to zombie in
     private final double ZOMBIE_UNBOARD_TIME = 1.5;
     private final String COLOR_RESET = "\u001B[0m";
     private final String COLOR_ELEVATOR_MOVE = "\u001B[35m";
@@ -404,7 +404,6 @@ public class MyElevatorController implements ElevatorController {
             }
         }
 
-        String travelMode = this.toDestination ? "Delivering" : "Picking up";
         int targetFloor;
 
         // Get next array request index
@@ -422,7 +421,7 @@ public class MyElevatorController implements ElevatorController {
         }
 
         // Print log
-        System.out.println(this.COLOR_ELEVATOR_MOVE + timeStamp() + travelMode + "(From: " + currentElevatorFloor
+        System.out.println(this.COLOR_ELEVATOR_MOVE + timeStamp() + "moveElevator" + "(From: " + currentElevatorFloor
                 + " To: " + targetFloor
                 + ")" + this.COLOR_RESET);
 
