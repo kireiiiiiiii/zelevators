@@ -58,7 +58,7 @@ public class MyElevatorController implements ElevatorController {
     private final double ZOMBIE_BOARD_TIME = 2.8; // How many seconds from the eleator arrival to zombie in
     private final double ZOMBIE_UNBOARD_TIME = 1.5;
     private final String COLOR_RESET = "\u001B[0m";
-    private final String COLOR_ELEVATOR_RUN = "\u001B[35m";
+    private final String COLOR_ELEVATOR_MOVE = "\u001B[35m";
     private final String COLOR_CALL_ELEVATOR = "\u001B[33m";
     private final String COLOR_QUE_FLOOR = "\u001B[32m";
     private final String COLOR_IMPORTANT = "\u001B[41m";
@@ -377,7 +377,6 @@ public class MyElevatorController implements ElevatorController {
         }
 
         String mode = this.toDestination ? "Delivering" : "Picking up";
-        System.out.println(timeStamp() + "Mode: " + mode);
         int targetFloor;
 
         // Get next array request index
@@ -393,6 +392,9 @@ public class MyElevatorController implements ElevatorController {
             targetFloor = waitList.get(next[1]).getFloorNum();
             waitList.get(next[1]).runRequest();
         }
+
+        // Print log
+        System.out.println(this.COLOR_ELEVATOR_MOVE + timeStamp() + mode + "(From: " + currFoor + " To: " + targetFloor +  ")" + this.COLOR_RESET);
 
         // Save the target floor
         this.elevatorTargetFloor = targetFloor;
@@ -479,7 +481,7 @@ public class MyElevatorController implements ElevatorController {
 
         public void runRequest() {
             boolean b = gotoFloor(this.ELEVATOR_INDEX, this.floorNum);
-            System.out.println(COLOR_ELEVATOR_RUN + timeStamp() + "Going to(" + this.floorNum + ")" + COLOR_RESET);
+            // System.out.println(COLOR_ELEVATOR_RUN + timeStamp() + "Going to(" + this.floorNum + ")" + COLOR_RESET);
         }
 
         public int getFloorNum() {
